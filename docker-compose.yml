@@ -1,0 +1,60 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: race_flow
+      POSTGRES_USER: race_flow
+      POSTGRES_PASSWORD: race_flow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./apps/saga-orchestrator/migrations:/docker-entrypoint-initdb.d
+
+  order-service:
+    build: ./apps/order-service
+    environment:
+      REDIS_ADDR: redis:6379
+      CONSUMER_GROUP: order-service-group
+    depends_on:
+      - redis
+
+  payment-service:
+    build: ./apps/payment-service
+    environment:
+      PORT: 3001
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3001:3001"
+    depends_on:
+      - redis
+
+  bib-service:
+    build: ./apps/bib-service
+    environment:
+      PORT: 3002
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "3002:3002"
+    depends_on:
+      - redis
+
+  saga-orchestrator:
+    build: ./apps/saga-orchestrator
+    environment:
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      DATABASE_URL: postgres://race_flow:race_flow@postgres:5432/race_flow
+    ports:
+      - "3000:3000"
+    depends_on:
+      - redis
+      - postgres
+
+volumes:
+  postgres_data:

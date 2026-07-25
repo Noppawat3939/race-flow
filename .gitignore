@@ -1,0 +1,22 @@
+# Node
+node_modules/
+dist/
+*.log
+
+# Yarn (Berry)
+**/.yarn/*
+!**/.yarn/patches
+!**/.yarn/plugins
+!**/.yarn/releases
+!**/.yarn/sdks
+!**/.yarn/versions
+**/.pnp.*
+
+# Go
+/apps/order-service/order-service
+
+# Env
+.env
+
+# OS
+.DS_Store

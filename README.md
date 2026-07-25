@@ -17,13 +17,13 @@ Registering a runner for a race involves three things that must stay consistent 
 
 ```
                      ┌────────────────────┐
-                     │  saga-orchestrator │  (Node/NestJS)
+                     │  saga-orchestrator │  (Node/Express)
                      └─────────┬──────────┘
              ┌──────────────────┼──────────────────┐
              ▼                  ▼                  ▼
      ┌───────────────┐  ┌────────────────┐  ┌───────────────┐
      │ order-service │  │ payment-service│  │  bib-service  │
-     │     (Go)      │  │  (Node/NestJS) │  │ (Node/NestJS) │
+     │     (Go)      │  │  (Node/Express) │  │ (Node/Express) │
      └───────┬───────┘  └────────┬───────┘  └───────┬───────┘
              └───────────────────┴──────────────────┘
                                  │
@@ -51,7 +51,7 @@ race-flow/
     │   ├── go.mod
     │   └── go.sum
     │
-    ├── payment-service/          # Node/NestJS
+    ├── payment-service/          # Node/Express
     │   ├── src/
     │   │   ├── payment/
     │   │   ├── stream/           # Redis Streams producer/consumer
@@ -59,7 +59,7 @@ race-flow/
     │   ├── test/
     │   └── package.json
     │
-    ├── bib-service/               # Node/NestJS
+    ├── bib-service/               # Node/Express
     │   ├── src/
     │   │   ├── bib/
     │   │   ├── stream/
@@ -67,7 +67,7 @@ race-flow/
     │   ├── test/
     │   └── package.json
     │
-    └── saga-orchestrator/         # Node/NestJS
+    └── saga-orchestrator/         # Node/Express
         ├── src/
         │   ├── saga/              # state machine + saga_instances repository
         │   ├── stream/
@@ -83,9 +83,9 @@ Each service under `apps/` is independently runnable and deployable — no share
 | Service | Stack | Responsibility |
 |---|---|---|
 | `order-service` | Go | Reserve a race slot atomically (handles the race-condition problem directly), publishes `order.reserved` |
-| `payment-service` | Node/NestJS | Charges the runner, publishes `payment.succeeded` / `payment.failed` |
-| `bib-service` | Node/NestJS | Issues a BIB number once payment succeeds |
-| `saga-orchestrator` | Node/NestJS | Drives the registration flow end-to-end, triggers compensation on failure |
+| `payment-service` | Node/Express | Charges the runner, publishes `payment.succeeded` / `payment.failed` |
+| `bib-service` | Node/Express | Issues a BIB number once payment succeeds |
+| `saga-orchestrator` | Node/Express | Drives the registration flow end-to-end, triggers compensation on failure |
 
 ## Messaging
 
@@ -119,7 +119,7 @@ Goal: reserve a race slot atomically without overselling, even under heavy concu
 - [ ] Unit tests cover the atomic reservation logic in isolation
 - [ ] Survives a K6 "registration rush" test (e.g. 1000 concurrent reservations against 100 slots) and ends with the correct slot count
 
-### `payment-service` (Node/NestJS)
+### `payment-service` (Node/Express)
 
 Goal: charge a runner exactly-once from the caller's perspective, including on retry.
 
@@ -129,7 +129,7 @@ Goal: charge a runner exactly-once from the caller's perspective, including on r
 - [ ] Simulates realistic failure (random failure rate or timeout) so the saga's compensation path is actually exercised, not just the happy path
 - [ ] Integration tests cover both the success and failure path
 
-### `bib-service` (Node/NestJS)
+### `bib-service` (Node/Express)
 
 Goal: issue a unique BIB number once, only after payment is confirmed.
 
@@ -139,7 +139,7 @@ Goal: issue a unique BIB number once, only after payment is confirmed.
 - [ ] Publishes `bib.issued` to `saga.events`
 - [ ] Test verifies uniqueness under concurrent issuance
 
-### `saga-orchestrator` (Node/NestJS)
+### `saga-orchestrator` (Node/Express)
 
 Goal: drive every registration to either full completion or full compensation — no saga left stuck in an inconsistent state.
 
@@ -168,7 +168,25 @@ Goal: drive every registration to either full completion or full compensation �
 
 ## Local development
 
-TBD once `order-service` is scaffolded.
+Copy `.env.example` to `.env` (each service reads the vars relevant to it) and either run everything together or one service at a time.
+
+**All services + Redis + Postgres:**
+
+```bash
+docker compose up --build
+```
+
+**One service at a time** (Redis, and Postgres for `saga-orchestrator`, must be running — `docker compose up redis postgres` or a local install):
+
+```bash
+# order-service (Go)
+cd apps/order-service && go run ./cmd
+
+# payment-service / bib-service / saga-orchestrator (Node/Express)
+cd apps/payment-service && yarn && yarn dev
+```
+
+Each service also has its own build/test commands: `go build ./...` / `go vet ./...` for `order-service`, `yarn build` + `yarn test` for the Node services (Yarn 4, `node-modules` linker).
 
 ## Non-goals
 
